@@ -1,0 +1,171 @@
+## Standard Seurat Workflow
+
+scrna.counts <- Read10X(data.dir = "~/Downloads/scrna3k/filtered_gene_bc_matrices/hg19/")
+scrna <- CreateSeuratObject(counts = scrna.counts)
+scrna <- NormalizeData(object = scrna)
+scrna <- FindVariableFeatures(object = scrna)
+scrna <- ScaleData(object = scrna)
+scrna <- RunPCA(object = scrna)
+scrna <- FindNeighbors(object = scrna)
+scrna <- FindClusters(object = scrna)
+scrna <- RunTSNE(object = scrna)
+DimPlot(object = scrna, reduction = "tsne")
+
+
+
+
+##--Seurat Object Interaction--------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Get cell and feature names, and total numbers
+colnames(x = scrna)
+Cells(scrna)
+rownames(x = scrna)
+ncol(x = scrna)
+nrow(x = scrna)
+
+# Get cell identity classes
+Idents(object = scrna)
+levels(x = scrna)
+
+# Stash cell identity classes
+scrna[["old.ident"]] <- Idents(object = scrna)
+scrna <- StashIdent(object = scrna, save.name = "old.ident")
+
+# Set identity classes
+Idents(object = scrna) <- "CD4 T cells"
+Idents(object = scrna, cells = 1:10) <- "CD4 T cells"
+
+# Set identity classes to an existing column in meta data
+Idents(object = scrna, cells = 1:10) <- "orig.ident"
+Idents(object = scrna) <- "orig.ident"
+
+# Rename identity classes
+scrna <- RenameIdents(object = scrna, `CD4 T cells` = "T Helper cells")
+# Subset Seurat object based on identity class, also see ?SubsetData
+subset(x = scrna, idents = "B cells")
+subset(x = scrna, idents = c("CD4 T cells", "CD8 T cells"), invert = TRUE)
+
+# Subset on the expression level of a gene/feature
+subset(x = scrna, subset = MS4A1 > 3)
+
+# Subset on a combination of criteria
+subset(x = scrna, subset = MS4A1 > 3 & PC1 > 5)
+subset(x = scrna, subset = MS4A1 > 3, idents = "B cells")
+
+# Subset on a value in the object meta data
+subset(x = scrna, subset = orig.ident == "Replicate1")
+
+# Downsample the number of cells per identity class
+subset(x = scrna, downsample = 100)
+# Merge two Seurat objects
+merge(x = scrna1, y = scrna2)
+# Merge more than two Seurat objects
+merge(x = scrna1, y = list(scrna2, scrna3))
+
+
+
+
+##--Data Access in Seurat-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+# View metadata data frame, stored in object@meta.data
+scrna[[]]
+
+# Retrieve specific values from the metadata
+scrna$nCount_RNA
+scrna[[c("percent.mito", "nFeature_RNA")]]
+
+# Add metadata, see ?AddMetaData
+random_group_labels <- sample(x = c("g1", "g2"), size = ncol(x = scrna), replace = TRUE)
+scrna$groups <- random_group_labels
+
+# Retrieve or set data in an expression matrix ('counts', 'data', and 'scale.data')
+GetAssayData(object = scrna, slot = "counts")
+scrna <- SetAssayData(object = scrna, slot = "scale.data", new.data = new.data)
+
+# Get cell embeddings and feature loadings
+Embeddings(object = scrna, reduction = "pca")
+Loadings(object = scrna, reduction = "pca")
+Loadings(object = scrna, reduction = "pca", projected = TRUE)
+
+# FetchData can pull anything from expression matrices, cell embeddings, or metadata
+FetchData(object = scrna, vars = c("PC_1", "percent.mito", "MS4A1"))
+
+
+
+
+
+##--Visualizations in Seurat---------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Dimensional reduction plot for PCA or tSNE
+DimPlot(object = scrna, reduction = "tsne")
+DimPlot(object = scrna, reduction = "pca")
+
+# Dimensional reduction plot, with cells colored by a quantitative feature
+FeaturePlot(object = scrna, features = "MS4A1")
+
+# Scatter plot across single cells, replaces GenePlot
+FeatureScatter(object = scrna, feature1 = "MS4A1", feature2 = "PC_1")
+FeatureScatter(object = scrna, feature1 = "MS4A1", feature2 = "CD3D")
+
+# Scatter plot across individual features, repleaces CellPlot
+CellScatter(object = scrna, cell1 = "AGTCTACTAGGGTG", cell2 = "CACAGATGGTTTCT")
+CellScatter(object = scrna, cell1 = names(Idents(object = seurat[,1])), cell2 = names(Idents(object = seurat[,2])))
+
+VariableFeaturePlot(object = scrna)
+
+# Violin and Ridge plots
+VlnPlot(object = scrna, features = c("LYZ", "CCL5", "IL32"))
+RidgePlot(object = scrna, feature = c("LYZ", "CCL5", "IL32"))
+
+# Heatmaps
+DoHeatmap(object = scrna, features = heatmap_markers)
+DimHeatmap(object = scrna, reduction = "pca", cells = 200)
+
+# New things to try!  Note that plotting functions now return ggplot2 objects, so you can add themes, titles, and
+# options onto them
+VlnPlot(object = scrna, features = "MS4A1", split.by = "groups")
+DotPlot(object = scrna, features = c("LYZ", "CCL5", "IL32"), split.by = "groups")
+FeaturePlot(object = scrna, features = c("MS4A1", "CD79A"), blend = TRUE)
+DimPlot(object = scrna) + DarkTheme()
+DimPlot(object = scrna) + labs(title = "2,700 scrnas clustered using Seurat and viewed\non a two-dimensional tSNE")
+
+
+# Plotting helper functions work with ggplot2-based scatter plots, such as DimPlot, FeaturePlot, CellScatter, and
+# FeatureScatter
+plot <- DimPlot(object = scrna) + NoLegend()
+
+# HoverLocator replaces the former `do.hover` argument It can also show extra data throught the `information` argument,
+# designed to work smoothly with FetchData
+HoverLocator(plot = plot, information = FetchData(object = scrna, vars = c("ident", "PC_1", "nFeature_RNA")))
+
+# FeatureLocator replaces the former `do.identify`
+select.cells <- FeatureLocator(plot = plot)
+
+# Label points on a ggplot object
+LabelPoints(plot = plot, points = TopCells(object = scrna[["pca"]]), repel = TRUE)
+
+
+
+
+
+##--Multi-assay features--------------------------------------------------------------------------------------------------------------------------------------------------------
+
+seurat <- CreateSeuratObject(counts = seurat.rna)
+
+# Add ADT data
+seurat[["ADT"]] <- CreateAssayObject(counts = seurat.adt)
+
+# Run analyses by specifying the assay to use
+NormalizeData(object = seurat, assay = "RNA")
+NormalizeData(object = seurat, assay = "ADT", method = "CLR")
+
+# Retrieve and set the default assay
+DefaultAssay(object = seurat)
+DefaultAssay(object = seurat) <- "ADT"
+DefaultAssay(object = seurat)
+
+# Pull feature expression from both assays by using keys
+FetchData(object = seurat, vars = c("rna_CD3E", "adt_CD3"))
+
+# Plot data from multiple assays using keys
+FeatureScatter(object = seurat, feature1 = "rna_CD3E", feature2 = "adt_CD3")
