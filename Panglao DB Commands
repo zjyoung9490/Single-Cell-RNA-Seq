@@ -1,0 +1,83 @@
+library(rPanglaoDB)
+library(harmony)
+library(Nebulosa)
+
+# To access the list of available samples deposited in the PanglaoDB database you may use the getSamplesList() function:
+samplesList <- getSampleList()
+
+
+# To access the cell-type content for each sample from the panglaoDB database you may use the getSampleComposition function. 
+# This function returns the cell-type composition of the samples included in the PanglaoDB database in a data frame with 8 columns. 
+# For example, to retrieve the sample composition of the sample with SRS = SRS2119548 you may use the following code:
+scSRS2119548 <- getSampleComposition(srs = 'SRS2119548')
+head(scSRS2119548)
+
+
+# To access the list of available samples with specific expression patterns you may use the getMarkers() function. 
+# This function returns the output of a query submitted through here in the PanglaoDB database.
+
+# As an example, below we show how to retrieve the list of clusters containing two specific types of Endothelial cells. 
+# This type of cells act as barriers between vessels and tissues (Aman et al., 2016). 
+# They are known to control the flow of substances and fluids into and out of a tissue. 
+# Endothelial cells line blood vessels and lymphatic vessels, and are found exclusively in vascularized tissue (Bautch and Caron, 2015). 
+# Endothelial cells can be classified on the basis of a set of marker genes, for example, Lymphatic Endothelial Cells (LEC) are PECAM and PDPN positive, 
+# meanwhile Blood Endothelial Cells (BEC) are PECAM1 and VWF positive but negative for PDPN and ACTA2.
+BEC <- getMarkers(include = c('PECAM1', 'VWF'), exclude = c('PDPN', 'ACTA2'))
+head(BEC)
+
+LEC <- getMarkers(include = c('PECAM1', 'PDPN', 'PROX1'))
+head(LEC)
+
+
+
+
+#--Downloading the count matrices-------------------------------------------------------------------------------------------------------------------------------------
+
+
+# Once the desired samples to be downloaded are identified, the count matrices can be downloaded using the getSamples function. 
+# In the example below, we show how to download the set of Human Lymphatic Endothelial Cells applying two filters in the getSample function to the set of identified 
+# samples containing the desired phenotype (PECAM1+, PDPN+, PROX1+). 
+# By default, the output of the function is a Seurat object with all the samples merged. In this case is an object containing 1124 human endothelial cells.
+countsLEC <- getSamples(srs = unique(LEC$SRS), celltype = 'Endothelial cells', specie = 'Homo sapiens')
+countsLEC
+
+
+# Metadata associated with the downloaded count matrices can be accessed using the [[]] operator.
+head(countsLEC[[]])
+
+
+# Optionally if the unmerged samples are needed, you may set the merge parameter as FALSE. 
+# In this case the output is a list containing n number of Seurat objects as samples requested in the input.
+countsLEC <- getSamples(srs = unique(LEC$SRS), celltype = 'Endothelial cells', specie = 'Homo sapiens', merge = FALSE)
+countsLEC
+
+
+
+
+#--Post-processing------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+# Once downloaded and merged the desired samples, some postprocessing is required to identify the cells exhibiting the desired phenotype. 
+# For that purpose, here we show the process how to integrate all the samples using Seurat and Harmony. 
+# The cluster exhibiting the desired phenotype is identified using the Nebulosa package.
+set.seed(1)
+countsLEC <- Seurat::NormalizeData(countsLEC)
+countsLEC <- Seurat::FindVariableFeatures(countsLEC)
+countsLEC <- Seurat::ScaleData(countsLEC)
+countsLEC <- Seurat::RunPCA(countsLEC, verbose = FALSE)
+countsLEC <- harmony::RunHarmony(countsLEC, group.by.vars = 'orig.ident')
+countsLEC <- Seurat::FindNeighbors(countsLEC, reduction = 'harmony')
+countsLEC <- Seurat::FindClusters(countsLEC)
+countsLEC <- Seurat::RunTSNE(countsLEC, reduction = 'harmony')
+Nebulosa::plot_density(countsLEC, features = c('PECAM1', 'PDPN', 'PROX1'), joint = TRUE)
+
+
+# In this example, cluster 4 is the one containing 121 Human Lymphatic Endothelial Cells with constitutive expression of PECAM1, PDPN, and PROX1.
+Seurat::DotPlot(countsLEC, features = c('PECAM1', 'PDPN', 'PROX1')) + ggplot2::coord_flip()
+table(Seurat::Idents(countsLEC))
+
+
+
+
+#--Citation---------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Daniel Osorio, Marieke Kuijjer and James J. Cai (2021). rPanglaoDB: Download and Merge Single-Cell RNA-Seq Data from the PanglaoDB Database. R package. https://CRAN.R-project.org/package=rPanglaoDB
