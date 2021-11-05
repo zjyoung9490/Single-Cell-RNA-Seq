@@ -1,0 +1,84 @@
+# Find genes of interest and use getMarkers to find cells with that expression profile
+az <- getMarkers(include = c("SORL1", "PLD3", "PICALM"))
+az
+table(az$`Cell-Type`)
+
+az_data <- getSamples(srs = unique(az$SRS), celltype = c("Oligodendrocytes", "Neurons", "Trigeminal neurons", "Interneurons"), specie = 'Mus musculus')
+head(az_data[[]])
+table(az_data$CellTypes)
+
+az_data <- getSamples(srs = "SRS3059972")
+seurat <- az_data
+seurat <- Seurat::NormalizeData(seurat)
+seurat <- Seurat::FindVariableFeatures(seurat)
+seurat <- Seurat::ScaleData(seurat)
+seurat <- Seurat::RunPCA(seurat, verbose = FALSE)
+seurat <- harmony::RunHarmony(seurat, group.by.vars = 'orig.ident')
+seurat <- Seurat::FindNeighbors(seurat, k.param = 3, reduction = 'harmony')
+seurat <- Seurat::FindClusters(seurat, resolution = 0.6)
+seurat <- Seurat::RunTSNE(seurat, reduction = 'harmony')
+Nebulosa::plot_density(seurat, features = seurat@assays$RNA@var.features[1:3], joint = TRUE)
+Nebulosa::plot_density(seurat, features = c("SORL1", "PLD3", "PICALM"), joint = TRUE)
+
+table(Seurat::Idents(seurat))
+
+
+FeatureScatter(object = seurat, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(seurat), 10)
+top10
+
+# plot variable features with and without labels
+plot1 <- VariableFeaturePlot(seurat)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE, xnudge = 0, ynudge = 0)
+plot1
+plot2
+
+
+FeaturePlot(object = seurat, features = c("SORL1", "PLD3", "PICALM"), cols = c("lightgrey", "blue"), reduction ="pca")
+FeaturePlot(object = seurat, features = c("SORL1", "PLD3", "PICALM"), cols = c("lightgrey", "blue"), reduction ="tsne")
+
+
+DimPlot(seurat, reduction = "pca", group.by = "CellTypes")
+DimPlot(seurat, reduction = "tsne", group.by = "CellTypes")
+
+
+FeaturePlot(object = seurat, features = c("APP", "SORL1", "PLD3", "PICALM"), cols = c("lightgrey", "blue"), reduction ="tsne")
+FeaturePlot(object = seurat, features = c("APOE", "TREM2", "PSEN1", "PSEN2"), cols = c("lightgrey", "blue"), reduction ="tsne")
+
+TSNEPlot(object = seurat, col = factor(dat$CellTypes))
+dat <- seurat[[]]
+
+neurons <- which(dat$CellTypes == "Neurons")
+neurons <- dat[neurons,]
+table(neurons$seurat_clusters)
+Idents(seurat)
+
+# Find differentially expressed genes based off cell type
+
+VlnPlot(object = seurat, features = "APP", group.by = "CellTypes", slot = "counts", log = TRUE)
+VlnPlot(object = seurat, features = "PLD3", group.by = "CellTypes")
+VlnPlot(object = seurat, features = "PICALM", group.by = "CellTypes")
+VlnPlot(object = seurat, features = "SORL1", group.by = "CellTypes")
+VlnPlot(object = seurat, features = "APOE", group.by = "CellTypes")
+VlnPlot(object = seurat, features = "TREM2", group.by = "CellTypes")
+VlnPlot(object = seurat, features = "PSEN1", group.by = "CellTypes")
+VlnPlot(object = seurat, features = "PSEN2", group.by = "CellTypes")
+
+
+
+# Look for cell receptor genes used in drug delivery and examine expression across cell types
+VlnPlot(object = seurat, features = "GABRA5", group.by = "CellTypes", slot = "counts", log = TRUE)
+
+
+# Astrocytes help clear amyloid beta
+# Lets examine the expression level of important receptors for clearing amyloid beta and see if they are unique to astrocytes
+# Some of these include CD36, RAGE, SCARA1, and MARCO
+Nebulosa::plot_density(seurat, features = c("CD36", "RAGE", "SCARA-1" , "FPR1"))
+VlnPlot(object = seurat, features = "CD36", group.by = "CellTypes")
+
+# Or look at genes differentially expressed in astrocytes with heatmap
+brain.markers <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+top25 <- head(VariableFeatures(seurat), 25)
+DoHeatmap(seurat, features = top25, group.by = "CellTypes")
