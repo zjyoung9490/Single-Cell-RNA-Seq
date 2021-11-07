@@ -1,0 +1,35 @@
+#==Check if the packages required by ShinyCell exist and install them if required:=================================================================================
+
+reqPkg = c("data.table", "Matrix", "hdf5r", "reticulate", "ggplot2", 
+           "gridExtra", "glue", "readr", "RColorBrewer", "R.utils", "Seurat")
+newPkg = reqPkg[!(reqPkg %in% installed.packages()[,"Package"])]
+if(length(newPkg)){install.packages(newPkg)}
+
+
+#==Installing Shiny Cell===========================================================================================================================================
+devtools::install_github("SGDDNB/ShinyCell")
+
+
+#==Creating a Shiny App with an example seurat dataset==============================================================================================================
+library(Seurat)
+library(ShinyCell)
+
+getExampleData()                       # Download example dataset (~200 MB)
+seu = readRDS("readySeu_rset.rds")
+scConf = createConfig(seurat)
+makeShinyApp(seu, scConf, gene.mapping = TRUE,
+             shiny.title = "ShinyCell Quick Start") 
+
+
+#==Interface with the Shiny App=====================================================================================================================================
+install.packages('rsconnect')     # package to interface shiny apps
+library(rsconnect)
+
+rsconnect::setAccountInfo(name="<ACCOUNT>", 
+                          token="<TOKEN>",
+                          secret="<SECRET>") 
+
+rsconnect::deployApp("shinyApp/")
+
+#==Citation=========================================================================================================================================================
+## Ouyang et al. ShinyCell: Simple and sharable visualisation of single-cell gene expression data. Bioinformatics, doi:10.1093/bioinformatics/btab209.
