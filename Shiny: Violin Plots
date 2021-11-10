@@ -1,0 +1,25 @@
+# Below is code used to generate a simple shiny application for the visualization of Violin Plots comparing gene expression levels across different cell types from a seurat object
+# The app allows the user to select genes that are variable across different cell types as found from the FindVariableFeatures command from the Seurat library
+
+
+##===Shiny Application: Violin Plot==========================================================
+library(shiny)
+library(plyr)
+
+ui <- fluidPage(
+  titlePanel("Violin Plot"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput('Gene', 'Gene', seurat@assays$RNA@var.features[]),
+    ),
+    mainPanel(plotOutput("plot1")),
+  )
+)
+
+
+server <- function(input, output) {
+  output$plot1 <- renderPlot({
+    VlnPlot(object = seurat, features = input$Gene, group.by = "CellTypes")})
+}
+
+shinyApp(ui = ui, server = server) 
