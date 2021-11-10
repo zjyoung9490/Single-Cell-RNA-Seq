@@ -1,3 +1,8 @@
+# Below is code used to generate a simple shiny application for the visualization of feature plots generated from a seurat object
+# The app allows the user to select genes that are variable across different cell types as found from the FindVariableFeatures command from the Seurat library
+# The user can also can choose which dimensionality reduction technique to display (PCA, TSNE, or UMAP)
+# The first plot shows which cell types belong to which cluster and the second plot is the actual feature plot
+# The feature plot then shows in which clusters the chosen gene is most heavily expressed
 
 
 ##===Shiny Application: Feature Plots==========================================================
