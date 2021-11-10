@@ -1,0 +1,30 @@
+
+
+##===Shiny Application: Feature Plots==========================================================
+library(shiny)
+library(plyr)
+
+ui <- fluidPage(
+  titlePanel("Feature Plot"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput('Gene', 'Gene', seurat@assays$RNA@var.features[]),
+      selectInput('Reduction', 'Reduction', c("pca", "tsne", "umap")),
+    ),
+    mainPanel(
+      fluidRow(
+        splitLayout(cellWidths = c("50%", "50%"), plotOutput("plot1"), plotOutput("plot2"))
+        )
+    ),
+  )
+)
+
+
+server <- function(input, output) {
+  output$plot1 <- renderPlot({
+    DimPlot(seurat, reduction = input$Reduction, group.by = "CellTypes")})
+  output$plot2 <- renderPlot({
+    FeaturePlot(object = seurat, features = input$Gene, cols = c("lightgrey", "blue"), reduction = input$Reduction)})
+}
+
+shinyApp(ui = ui, server = server) 
