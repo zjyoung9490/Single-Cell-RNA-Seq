@@ -1,29 +1,55 @@
-# Find genes of interest and use getMarkers to find cells with that expression profile
-az <- getMarkers(include = c("SORL1", "PLD3", "PICALM"))
-az
-table(az$`Cell-Type`)
-
-az_data <- getSamples(srs = unique(az$SRS), celltype = c("Oligodendrocytes", "Neurons", "Trigeminal neurons", "Interneurons"), specie = 'Mus musculus')
-head(az_data[[]])
-table(az_data$CellTypes)
-
-az_data <- getSamples(srs = "SRS3059972")
-seurat <- az_data
-seurat <- Seurat::NormalizeData(seurat)
-seurat <- Seurat::FindVariableFeatures(seurat)
-seurat <- Seurat::ScaleData(seurat)
-seurat <- Seurat::RunPCA(seurat, verbose = FALSE)
-seurat <- harmony::RunHarmony(seurat, group.by.vars = 'orig.ident')
-seurat <- Seurat::FindNeighbors(seurat, k.param = 3, reduction = 'harmony')
-seurat <- Seurat::FindClusters(seurat, resolution = 0.6)
-seurat <- Seurat::RunTSNE(seurat, reduction = 'harmony')
-Nebulosa::plot_density(seurat, features = seurat@assays$RNA@var.features[1:3], joint = TRUE)
-Nebulosa::plot_density(seurat, features = c("SORL1", "PLD3", "PICALM"), joint = TRUE)
-
-table(Seurat::Idents(seurat))
+library(harmony)
+library(Nebulosa)
+library(Seurat)
+library(rPanglaoDB)
 
 
-FeatureScatter(object = seurat, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+# Get a list of the data available from the Panglao database
+samplesList <- getSampleList()
+
+# Make a list of genes expected to be involved in Alzheimers
+az_genes <- c("APOE", "APP", "PLD3", "PICALM", "PSEN1", "PSEN2", "SORL1", "TREM2")
+
+# Make a list of genes expected to be involved in Parkinsons 
+pk_genes <- c("SNCA", "LRRK2", "PINK1", "DJ1", "APT13A2", "PLA2G6", "FBXO7", "UCHL1", "GIGYF2", "HTRA2", "EIF4G1", "GBA", "MAPT", "BST1", "PARK16", "GAK", "HLA")
+
+
+# The data to examine will be a cortex sample from mus musculus
+# Get data from Panglao
+seurat <- getSamples(srs = "SRS2532371")
+
+
+# First we will run the data through a series of processing steps
+seurat <- SubsetData(seurat, ident.remove = c("Endothelial cells", "Fibroblasts"))
+seurat <- NormalizeData(seurat)
+seurat <- FindVariableFeatures(seurat)
+seurat <- ScaleData(seurat)
+seurat <- RunPCA(seurat, verbose = FALSE)
+seurat <- RunHarmony(seurat, group.by.vars = 'orig.ident')
+seurat <- FindNeighbors(seurat, reduction = 'harmony')
+seurat <- FindClusters(seurat, resolution = 0.6)
+seurat <- RunTSNE(seurat, reduction = 'harmony')
+seurat <- RunUMAP(seurat, dims = 1:5)
+
+
+# Now Lets examine features of the dataset a little bit
+# First will get a sense of the structure of the data
+
+# Look at the cell types present
+ncol(x = seurat) # number of cells
+nrow(x = seurat) # number of features/genes
+table(seurat[[]]$CellTypes)
+par(mar = c(8, 8, 2, 2))
+barplot(table(seurat[[]]$CellTypes), xlab = "Cell Type", las = 2)
+
+# Histograms of the Gene Counts per cell and UMIs per cell
+hist(seurat@meta.data$nCount_RNA, breaks = 50, col = "blue", main = "Histogram of Total Gene Counts per Cell")
+hist(seurat@meta.data$nFeature_RNA, breaks = 50, col = "orange", main = "Histogram of Unique Gene Counts per Cell (UMIs)")
+
+
+# Scatter plot comparing RNA counts to feature counts
+FeatureScatter(object = seurat, group.by = "CellTypes", feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
 
 # Identify the 10 most highly variable genes
 top10 <- head(VariableFeatures(seurat), 10)
@@ -32,32 +58,33 @@ top10
 # plot variable features with and without labels
 plot1 <- VariableFeaturePlot(seurat)
 plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE, xnudge = 0, ynudge = 0)
-plot1
 plot2
 
 
-FeaturePlot(object = seurat, features = c("SORL1", "PLD3", "PICALM"), cols = c("lightgrey", "blue"), reduction ="pca")
-FeaturePlot(object = seurat, features = c("SORL1", "PLD3", "PICALM"), cols = c("lightgrey", "blue"), reduction ="tsne")
-
-
+# Now lets begin visualizing the gene expression data
+# First we will look at how the data was clustered in regards to the different cell types 
 DimPlot(seurat, reduction = "pca", group.by = "CellTypes")
 DimPlot(seurat, reduction = "tsne", group.by = "CellTypes")
+DimPlot(seurat, reduction = "umap", group.by = "CellTypes")
 
+
+# Now look at feature plots to examine how the expression for certain genes is different between clusters
+Nebulosa::plot_density(seurat, features = pk_genes[1:3], joint = TRUE)
+Nebulosa::plot_density(seurat, features = az_genes[1:3], joint = TRUE)
 
 FeaturePlot(object = seurat, features = c("APP", "SORL1", "PLD3", "PICALM"), cols = c("lightgrey", "blue"), reduction ="tsne")
 FeaturePlot(object = seurat, features = c("APOE", "TREM2", "PSEN1", "PSEN2"), cols = c("lightgrey", "blue"), reduction ="tsne")
 
-TSNEPlot(object = seurat, col = factor(dat$CellTypes))
-dat <- seurat[[]]
 
-neurons <- which(dat$CellTypes == "Neurons")
-neurons <- dat[neurons,]
-table(neurons$seurat_clusters)
-Idents(seurat)
+# One way to look at differential expression is with a heatmap
+# Here we find the top 20 most variable expressed genes and compare their expression in the cell types
+top20 <- TopFeatures(seurat)
+DoHeatmap(seurat, features = top20, group.by = "CellTypes")
 
-# Find differentially expressed genes based off cell type
 
-VlnPlot(object = seurat, features = "APP", group.by = "CellTypes", slot = "counts", log = TRUE)
+# Another way to examine differentially expressed genes between cell types is with Violin Plots
+# Here we will examine the genes involved in Alzheimers
+VlnPlot(object = seurat, features = "APP", group.by = "CellTypes")
 VlnPlot(object = seurat, features = "PLD3", group.by = "CellTypes")
 VlnPlot(object = seurat, features = "PICALM", group.by = "CellTypes")
 VlnPlot(object = seurat, features = "SORL1", group.by = "CellTypes")
@@ -67,18 +94,54 @@ VlnPlot(object = seurat, features = "PSEN1", group.by = "CellTypes")
 VlnPlot(object = seurat, features = "PSEN2", group.by = "CellTypes")
 
 
+# A more efficient way to look through the expression level of genes would be to make some Shiny applications
+# Below are apps where we can look at both the Alzheimer's and Parkinson's genes more interactively
 
-# Look for cell receptor genes used in drug delivery and examine expression across cell types
-VlnPlot(object = seurat, features = "GABRA5", group.by = "CellTypes", slot = "counts", log = TRUE)
+##===Shiny Application: Violin Plot======================================================================================================================
+library(shiny)
+library(plyr)
+
+ui <- fluidPage(
+  titlePanel("Violin Plot"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput('Gene', 'Gene', c(az_genes, pk_genes)),
+    ),
+    mainPanel(plotOutput("plot1")),
+  )
+)
 
 
-# Astrocytes help clear amyloid beta
-# Lets examine the expression level of important receptors for clearing amyloid beta and see if they are unique to astrocytes
-# Some of these include CD36, RAGE, SCARA1, and MARCO
-Nebulosa::plot_density(seurat, features = c("CD36", "RAGE", "SCARA-1" , "FPR1"))
-VlnPlot(object = seurat, features = "CD36", group.by = "CellTypes")
+server <- function(input, output) {
+  output$plot1 <- renderPlot({
+    VlnPlot(object = seurat, features = input$Gene, group.by = "CellTypes")})
+}
 
-# Or look at genes differentially expressed in astrocytes with heatmap
-brain.markers <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
-top25 <- head(VariableFeatures(seurat), 25)
-DoHeatmap(seurat, features = top25, group.by = "CellTypes")
+shinyApp(ui = ui, server = server) 
+
+
+##===Shiny Application: Feature Plots========================================================================================================================
+ui <- fluidPage(
+  titlePanel("Feature Plot"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput('Gene', 'Gene', c(az_genes, pk_genes)),
+      selectInput('Reduction', 'Reduction', c("pca", "tsne", "umap")),
+    ),
+    mainPanel(
+      fluidRow(
+        splitLayout(cellWidths = c("50%", "50%"), plotOutput("plot1"), plotOutput("plot2"))
+        )
+    ),
+  )
+)
+
+
+server <- function(input, output) {
+  output$plot1 <- renderPlot({
+    DimPlot(seurat, reduction = input$Reduction, group.by = "CellTypes")})
+  output$plot2 <- renderPlot({
+    Nebulosa::plot_density(seurat, features = input$Gene, reduction = input$Reduction)})
+}
+
+shinyApp(ui = ui, server = server) 
